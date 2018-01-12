@@ -9,7 +9,7 @@
 #define DODATAK 0.25 //duzina za koju se mrdaju kuglice svakim redisplejem
 #define POCETAK 41 //y koordinata od koje krece pojavljivanje loptica
 #define MAXR 40 //maximalna pozicija kuglice na y-osi pre crtanja nove na istu zicu
-#define TOLERANCIJA 0.1 //tolerancija kasnjenja/ranjenja pojavljivanja kuglice
+#define TOLERANCIJA 0.05 //tolerancija kasnjenja/ranjenja pojavljivanja kuglice
 static float bkk = 10; //brzina kretanja kuglica
 
 typedef struct{
@@ -18,6 +18,11 @@ typedef struct{
 	int n; //redni broj naredne kuglice za crtanje na zicu
 	int m; //redni broj poslednje uklonjene kuglice sa zice
 } zica;
+
+typedef struct{
+	float* tipkanje; //dinamicki alociran niz koji cuva vreme uklanjanja kuglice
+	int n; //redni broj narednog slobodnog polja u nizu
+} skor;
 
 static char velicinaProzora; // o/p -> ceo ekran/deo ekrana
 static char mod; // e/m/h -> easy/meadium/hard
@@ -29,12 +34,16 @@ static zica pomeraj[5]; //podaci o svakoj zici
 //promenljive za racunanje vremenskih intervala
 static double pocetakIgre; //vreme pocetka igre
 static double pauza; //merac trajanja pauze
+static double pocetakPauze;
 static int sledecaKuglica; //redni broj kuglice cije se vreme sledece ceka
+static skor pogodak; //cuva vreme pogodjenih kuglica
 
 //podaci iz datoteke
 static double *nizPesme; //niz vremena kada treba da se pojavi kruzic
 static int brNota; //koliko ukupno ima kruzica za izlazak
 
+//muzika
+static char muzika; // u/i -ukljucena/iskljucena
 
 static void on_reshape(int sirina, int visina){
 	//namestanje viewporta
@@ -96,6 +105,34 @@ void loptica(int y, int linija){
 	glPopMatrix();
 }
 
+
+void racunanjePoena(){
+	float poeni = 0;
+
+	int faktor;
+
+	switch(mod){
+		case 'e': faktor = 5; break;
+		case 'm':
+			//u medium modu se ne racuna skor,
+			//samo se opisuje nacin igre u zavisnosti
+			//je li stiglo do jump scare-a ili ne
+			if(rezultat == 'g')
+				//promeniti printf
+				printf("~nedovoljno duga igra za racunanje skora~\n");
+			break;
+		case 'h': faktor = 2; break;
+	}
+
+	for(int i = 0; i < brNota; i++)
+		poeni += faktor / (labs(nizPesme[i] - pogodak.tipkanje[i]));
+
+	printf("%f", poeni);
+
+	//cuvanje skora zajedno sa vremenom igre u fajlu, 
+	//eventualno kao argumentom komandne linije prosledjenim imenom
+}
+
 static void on_display(void){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -130,11 +167,37 @@ static void on_display(void){
 		//crtanje zica
 		for(int x = -8; x <9; x = x+4){
 		    glBegin(GL_LINE_STRIP);
-			glVertex3f(x, -2, 0);
+			glVertex3f(x, -7, 0);
 			glVertex3f(x, 40, 0);
 		    glEnd();
 		}
 
+		//zica prekoracenja
+		amb[1] = 0;
+		amb[2] = 0;
+		glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
+		glBegin(GL_LINE_STRIP);
+		    glVertex3f(-8, -2, 0);
+		    glVertex3f(8, -2, 0);
+		glEnd();
+
+		//zica prioriteta
+		int daljina;
+		switch(mod){
+			case 'e': daljina = 11; break;
+			case 'm': daljina = 7; break;
+			case 'h': daljina = 4; break;
+		}
+
+		amb[1] = 0.8;
+		amb[0] = 0.9;
+		glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
+		glBegin(GL_LINE_STRIP);
+		    glVertex3f(-8, daljina, 0);
+		    glVertex3f( 8, daljina, 0);
+		glEnd();
+
+		//crtanje kuglica
 		for(int i = 0; i < 5; i++){
 			for(int j = pomeraj[i].m; j < pomeraj[i].n; j++)
 					loptica(pomeraj[i].y[j], i+1);
@@ -149,9 +212,9 @@ static void on_display(void){
 			  0,1,0);
 
 
-
 	} else if(stanjeIgre == 'p'){ //pauza
-		//stopira se vreme za pesmu
+		//prikazuju se samo instrukcije 
+		//za odabir menija/igre/kraja igrice
 	}
 
 	glutSwapBuffers();
@@ -198,7 +261,8 @@ static void on_timer(int value)
 			     - pocetakIgre - pauza;
 
 		//ako je vreme za novu kuglicU
-		if(abs(tekuceVreme - nizPesme[sledecaKuglica]) < TOLERANCIJA){
+		if(tekuceVreme - nizPesme[sledecaKuglica] < TOLERANCIJA 
+		&& tekuceVreme - nizPesme[sledecaKuglica] > -TOLERANCIJA){
 			//...random izaberi jednu zicu i dodaj je
 			int zica = rand() % 5;
 			int i;
@@ -258,16 +322,76 @@ static void on_timer(int value)
 		glutTimerFunc(bkk, on_timer, 0);
 }
 
+static void on_keyboard2(unsigned char key, int x, int y){
+	if(key == 27 || key == 'i'){
+		stanjeIgre = 'i';
+
+		//podesavanje vremena pauze
+		struct timeval pom;
+		gettimeofday(&pom, NULL); //+1 jer se za toliko poziva funkcija
+		pauza += pom.tv_sec + 0.000001 * pom.tv_usec - pocetakPauze+1;
+		
+/*TODO naci nacin za povratak (mozda fork)*/
+		//nazad u igru			
+
+/*TODO proveriti da li je problem curenja 
+     memorije, tj. da li se svaki put
+ pravi novi prozor bez unistavanja starog*/
+
+		//zatvaranje prozora
+		glutHideWindow();
+	} else if(key == 'm'){
+/*TODO*/	//dealokacija memorije
+		
+		stanjeIgre = 'm';
+		glutPostRedisplay();
+		//zatvaranje prozora
+		glutHideWindow();
+	}
+}
+
+void otvoriProzor(void){
+	glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
+
+	glutInitWindowSize(300, 200);
+	glutInitWindowPosition(800, 500);
+	glutCreateWindow("Pauza");
+
+	//koristi se ista displej funkcija 
+	//zbog mogucnosti poziva pred izlazak iz pauze
+	glutDisplayFunc(on_display);
+	glutKeyboardFunc(on_keyboard2);
+	glutReshapeFunc(on_reshape);	
+
+	glutMainLoop();
+}
+
 static void on_keyboard(unsigned char key, int x, int y){
 	if(key == 27){
-		//za pocetak se samo izlazi
-		exit(0);
+		if(stanjeIgre == 'm')
+			exit(0);
+		/*else if(stanjeIgre == 'p'){
+		ovo stanje ima svoj prozor gde je obradjena reakcija na esc	
+		}*/
+		else if(stanjeIgre == 'i'){
+			//ako je muzika ukljucena pauza nije, izlazi se iz programa
+			if(muzika == 'u'){
+				stanjeIgre = 'm';
+				glutPostRedisplay();
+			} else{
+				struct timeval pom;
+				gettimeofday(&pom, NULL);
+				pocetakPauze = pom.tv_sec + 0.000001 * pom.tv_usec;
 
-		//u daljem radu se pravi meni za izbor iz cega se izlazi:
-			//iz cele igrice
-			//iz trenutne igre
-		//izborIzlaza();
-		//dealocirati memoriju iz key=13
+				stanjeIgre = 'p';
+				otvoriProzor();
+			}
+			//u daljem radu se pravi meni za izbor iz cega se izlazi:
+				//iz cele igrice
+				//iz trenutne igre
+			//izborIzlaza();
+			//dealocirati memoriju iz key=13
+		}
 	} else if(key == 'o' || key == 'O'){
 		//proverava se je li vec bilo to slovo
 		if(velicinaProzora != 'o'){
@@ -351,6 +475,7 @@ int main(int argc, char** argv){
 	glClearColor(0.1, 0.1, 0.1, 0);
 	mod = 'e'; //difoltni je najlaksi nivo
 	stanjeIgre = 'm'; //igra krece iz menija
+	muzika = 'i'; //po difoltu je muzika iskljucena
 
 	//ukljucivanje potrebnih specifikacija
 	glEnable(GL_DEPTH_TEST);
