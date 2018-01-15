@@ -4,6 +4,9 @@
 #include <sys/time.h>
 #include <time.h>
 #include <math.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <string.h>
 #include <GL/glut.h>
 
 #define DODATAK 0.25 //duzina za koju se mrdaju kuglice svakim redisplejem
@@ -20,23 +23,36 @@ typedef struct{
 } zica;
 
 typedef struct{
-	float* tipkanje; //dinamicki alociran niz koji cuva vreme uklanjanja kuglice
+	double* tipkanje; //dinamicki alociran niz koji cuva vreme uklanjanja kuglice
 	int n; //redni broj narednog slobodnog polja u nizu
 } skor;
+
+typedef struct{
+	char* struna; //dinamicki alociran niz kuglica na zicama d/f/g/h/j
+	int n; //redni broj narednog slobodnog polja u nizu
+	int m; //redni broj poslednje uklonjene kuglice
+} redosled;
 
 static char velicinaProzora; // o/p -> ceo ekran/deo ekrana
 static char mod; // e/m/h -> easy/meadium/hard
 static char stanjeIgre; //m/i/p -> meni/igra/pauza 
 static char rezultat; // g/t/z/p -> gubitak/traje/zavrsnica/pobeda
+static char brIgraca; // 1/2 -> jedan/dva
 
 static zica pomeraj[5]; //podaci o svakoj zici
+static redosled redosledZica; //redosled zica pojavljivanja kuglica
 
 //promenljive za racunanje vremenskih intervala
 static double pocetakIgre; //vreme pocetka igre
-static double pauza; //merac trajanja pauze
-static double pocetakPauze;
 static int sledecaKuglica; //redni broj kuglice cije se vreme sledece ceka
 static skor pogodak; //cuva vreme pogodjenih kuglica
+
+//pauza
+static int sid; //subwindow id
+static int wid; //window id (id glavnog prozora)
+static double pocetakPauze; //vreme pri pocetku pauze
+static double pauza; //merac trajanja pauze
+static char promena; // 0/1 u zavisnosti da li treba menjati vidljivost potprozora
 
 //podaci iz datoteke
 static double *nizPesme; //niz vremena kada treba da se pojavi kruzic
@@ -44,6 +60,10 @@ static int brNota; //koliko ukupno ima kruzica za izlazak
 
 //muzika
 static char muzika; // u/i -ukljucena/iskljucena
+
+//imena igraca
+static char* ime1;
+static char* ime2;
 
 static void on_reshape(int sirina, int visina){
 	//namestanje viewporta
@@ -54,6 +74,8 @@ static void on_reshape(int sirina, int visina){
 	glLoadIdentity();
 	gluPerspective(60, (float)sirina/visina, 1, 50);
 }
+
+static void on_timer(int value);
 
 void loptica(int y, int linija){
 	//inicijalizuju se koordinate
@@ -120,20 +142,62 @@ void racunanjePoena(){
 			if(rezultat == 'g')
 				//promeniti printf
 				printf("~nedovoljno duga igra za racunanje skora~\n");
+			return;
 			break;
 		case 'h': faktor = 2; break;
 	}
 
-	for(int i = 0; i < brNota; i++)
+	for(int i = 0; i < pogodak.n; i++)
 		poeni += faktor / (labs(nizPesme[i] - pogodak.tipkanje[i]));
 
 	printf("%f", poeni);
 
-	//cuvanje skora zajedno sa vremenom igre u fajlu, 
-	//eventualno kao argumentom komandne linije prosledjenim imenom
+	//cuvanje skora
+	FILE* f = fopen("skor.txt", "a");
+	if(f == NULL){
+		printf("nemoguce upisati skor");
+		return;
+	}
+	
+	fprintf(f, "%.5f", poeni);
+	if(brIgraca == 1){
+		if(ime1 != NULL)
+			fprintf(f, " %s", ime1);
+		else
+			fprintf(f, " anonimus1");
+	}
+	else if(brIgraca == 2){
+		if(ime1 != NULL)
+			fprintf(f, " %s i", ime1);
+		else 
+			fprintf(f, " anonimus1 i");
+		if(ime2 != NULL)
+			fprintf(f, " %s\n", ime2);
+		else
+			fprintf(f, " anonimus2");
+	}
+	fprintf(f, "\n");
+	fclose(f);
 }
 
+
 static void on_display(void){
+	//ako je potrebno menjati vidljivost prozora
+	if(promena){
+		if(stanjeIgre != 'p'){
+			glutSetWindow(sid);
+			glutHideWindow();
+			glutSetWindow(wid);
+			glutTimerFunc(bkk, on_timer, 0);
+			//posle ovoga je potrebno pritisnuti bilo koje 
+			//dugme da bi se aplikacija nastavila			
+		} else {
+			glutSetWindow(sid);
+			glutShowWindow();
+		}
+		promena = 0;
+	}
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	if(stanjeIgre == 'i'){ //igra
@@ -145,7 +209,7 @@ static void on_display(void){
 		GLfloat presijavanje[] = { 20 };
 		glMaterialfv(GL_FRONT, GL_SHININESS, presijavanje);
 	
-		GLfloat em[] = { 0.1, 0.1, 0.1, 0 };
+		GLfloat em[] = { 0.1, 0.1, 0.1, 1 };
 		glMaterialfv(GL_FRONT, GL_EMISSION, em);
 
 		GLfloat amb[] = { 1, 1, 1, 1 };
@@ -211,6 +275,7 @@ static void on_display(void){
 			  0,0,0,
 			  0,1,0);
 
+		//prikaz instrukcija za 
 
 	} else if(stanjeIgre == 'p'){ //pauza
 		//prikazuju se samo instrukcije 
@@ -225,11 +290,14 @@ void dodaj(float d, int i){
 	if(pomeraj[i].n == 0 || pomeraj[i].n == pomeraj[i].m)
 		return;
 
-/*samo za probu pomeraj[i].m = pomeraj[i].n - 5 > 0 ? pomeraj[i].n - 5 : 0;*/
+/*samo za probu 
+pomeraj[i].m = pomeraj[i].n - 5 > 0 ? pomeraj[i].n - 5 : 0;*/
 	for(int j = pomeraj[i].m; j < pomeraj[i].n; j++){
 		pomeraj[i].y[j] = pomeraj[i].y[j] - d;
-		if(pomeraj[i].y[j] < -2)
+		if(pomeraj[i].y[j] < -2){
 			rezultat = 'g';
+			racunanjePoena();
+		}
 	}
 }
 
@@ -260,13 +328,14 @@ static void on_timer(int value)
 		tekuceVreme = tv.tv_sec + 0.000001 * tv.tv_usec 
 			     - pocetakIgre - pauza;
 
-		//ako je vreme za novu kuglicU
+		//ako je vreme za novu kuglicu
 		if(tekuceVreme - nizPesme[sledecaKuglica] < TOLERANCIJA 
 		&& tekuceVreme - nizPesme[sledecaKuglica] > -TOLERANCIJA){
 			//...random izaberi jednu zicu i dodaj je
 			int zica = rand() % 5;
 			int i;
-			//ako je poslednja loptica na toj zici previsoko biramo sledecu
+			//ako je poslednja loptica na izabranoj
+			//zici previsoko biramo sledecu
 			for(i = 0; i < 5; i++){
 				if(poslednja((zica + i) % 5) < MAXR) {
 					zica = (zica+i) % 5;
@@ -283,17 +352,30 @@ static void on_timer(int value)
 
 					//uvecavanje brojaca kuglica
 					sledecaKuglica++;
+
+					//namestanje niza za uklanjanje kuglica
+					char pom;
+					switch(zica){
+						case 0: pom = 'd'; break;
+						case 1: pom = 'f'; break;
+						case 2: pom = 'g'; break;
+						case 3: pom = 'h'; break;
+						case 4: pom = 'j'; break;
+					}
+					redosledZica.struna[redosledZica.n] = pom;
+					redosledZica.n++;
+					printf("%c\n", pom);
 				}
 			}
 	
-		//ako je prosao brzi voz za narednu kuglicu
-		} else if(tekuceVreme - nizPesme[sledecaKuglica] > 0.1){
+		//ako je prosao brzi voz za narednu kuglicu preskace se
+		} else if(tekuceVreme - nizPesme[sledecaKuglica] > TOLERANCIJA){
 			sledecaKuglica++;
 		}
 	} else if(sledecaKuglica >= brNota){
-		//sacekaj da poslednja kuglica bude uklonjena
-		//if()
-		//rezultat = 'z';
+		if(redosledZica.m == brNota){
+			rezultat = 'p';
+		}
 		//i onda kreni sa pomeranjem slike (zavrsnica deo u displeju)
 	}
 	
@@ -323,47 +405,30 @@ static void on_timer(int value)
 }
 
 static void on_keyboard2(unsigned char key, int x, int y){
-	if(key == 27 || key == 'i'){
+	if(key == 27 || key == 'i'){ //nazad u igru		
 		stanjeIgre = 'i';
+		promena = 1;
 
 		//podesavanje vremena pauze
 		struct timeval pom;
-		gettimeofday(&pom, NULL); //+1 jer se za toliko poziva funkcija
-		pauza += pom.tv_sec + 0.000001 * pom.tv_usec - pocetakPauze+1;
+		gettimeofday(&pom, NULL); 
+		pauza += pom.tv_sec + 0.000001 * pom.tv_usec - pocetakPauze;
+
+		glutPostRedisplay();
+	
+	} else if(key == 'm'){ //nazad u meni
 		
-/*TODO naci nacin za povratak (mozda fork)*/
-		//nazad u igru			
-
-/*TODO proveriti da li je problem curenja 
-     memorije, tj. da li se svaki put
- pravi novi prozor bez unistavanja starog*/
-
-		//zatvaranje prozora
-		glutHideWindow();
-	} else if(key == 'm'){
-/*TODO*/	//dealokacija memorije
+		//dealokacija memorije
+		free(nizPesme);
+		for(int i = 0; i < 5; i++)
+				free(pomeraj[i].y);
+		free(pogodak.tipkanje);
+		free(redosledZica.struna);
 		
 		stanjeIgre = 'm';
+		promena = 1;
 		glutPostRedisplay();
-		//zatvaranje prozora
-		glutHideWindow();
 	}
-}
-
-void otvoriProzor(void){
-	glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
-
-	glutInitWindowSize(300, 200);
-	glutInitWindowPosition(800, 500);
-	glutCreateWindow("Pauza");
-
-	//koristi se ista displej funkcija 
-	//zbog mogucnosti poziva pred izlazak iz pauze
-	glutDisplayFunc(on_display);
-	glutKeyboardFunc(on_keyboard2);
-	glutReshapeFunc(on_reshape);	
-
-	glutMainLoop();
 }
 
 static void on_keyboard(unsigned char key, int x, int y){
@@ -371,12 +436,13 @@ static void on_keyboard(unsigned char key, int x, int y){
 		if(stanjeIgre == 'm')
 			exit(0);
 		/*else if(stanjeIgre == 'p'){
-		ovo stanje ima svoj prozor gde je obradjena reakcija na esc	
-		}*/
+		ovo stanje ima svoj prozor gde
+		je obradjena reakcija na esc }*/		
 		else if(stanjeIgre == 'i'){
 			//ako je muzika ukljucena pauza nije, izlazi se iz programa
 			if(muzika == 'u'){
 				stanjeIgre = 'm';
+				//gasenjeMuzike()
 				glutPostRedisplay();
 			} else{
 				struct timeval pom;
@@ -384,13 +450,9 @@ static void on_keyboard(unsigned char key, int x, int y){
 				pocetakPauze = pom.tv_sec + 0.000001 * pom.tv_usec;
 
 				stanjeIgre = 'p';
-				otvoriProzor();
+				promena = 1; 
+				glutPostRedisplay();
 			}
-			//u daljem radu se pravi meni za izbor iz cega se izlazi:
-				//iz cele igrice
-				//iz trenutne igre
-			//izborIzlaza();
-			//dealocirati memoriju iz key=13
 		}
 	} else if(key == 'o' || key == 'O'){
 		//proverava se je li vec bilo to slovo
@@ -411,23 +473,14 @@ static void on_keyboard(unsigned char key, int x, int y){
 		if(stanjeIgre == 'm'){
 			//ulazi se u mod za igru
 			stanjeIgre = 'i';
-			//inicijalizacija pomeraja - nema nijedne loptice
-			for(int i = 0; i < 5; i++){
-/*dealocirati!*/		pomeraj[i].y = calloc(sizeof (float), brNota);
-				//ovo treba dealocirati pri izlasku 
-				//  iz igre i ulasku u meni
-				//u slucaju izlaska iz cele igrice 
-				//  bice automatski dealocirana memorija
-				pomeraj[i].n = 0;
-				pomeraj[i].m = 0;
-			}
-			rezultat = 't';
+
 			//ucitavanje nizPesme.txt
 			FILE* f = fopen("nizPesama.txt", "r");
 			if(f == NULL){
 				printf("problem sa datotekom nizPesme\n");
 				exit(1);
 			}
+
 			if(mod == 'e'){
 				fscanf(f, "%d\n", &brNota);
 /*dealocirati!*/		nizPesme = calloc(sizeof(double), brNota);
@@ -440,17 +493,71 @@ static void on_keyboard(unsigned char key, int x, int y){
 			}
 			fclose(f);
 
+			//inicijalizacija pomeraja - nema nijedne loptice
+			for(int i = 0; i < 5; i++){
+/*dealocirati!*/		pomeraj[i].y = calloc(sizeof (float), brNota);
+				//ovo treba dealocirati pri izlasku 
+				//  iz igre i ulasku u meni
+				//u slucaju izlaska iz cele igrice 
+				//  bice automatski dealocirana memorija
+				pomeraj[i].n = 0;
+				pomeraj[i].m = 0;
+			}
+			rezultat = 't';
+
+/*dealocirati!*/	pogodak.tipkanje = calloc(brNota, sizeof(double));
+/*dealocirati!*/	redosledZica.struna = calloc(brNota, sizeof(char));
+			redosledZica.n = 0;
+			redosledZica.m = 0;
+			
 			//inicijalizacija pocetnog vremena
 			struct timeval pom;
 			gettimeofday(&pom, NULL);
 			pocetakIgre = pom.tv_sec + 0.000001 * pom.tv_usec;
 			pauza = 0;
+			sledecaKuglica = 0;
 
 			//sid za random biranje zice
 			srand(pocetakIgre);
 
 			//momentalni poziv funkcije
 			glutTimerFunc(0.1, on_timer, 0);
+		}
+	} else if(strchr("dfghj", key) != NULL && brIgraca == 1){
+		int pom;
+		switch(key){
+			case 'd': pom = 0; break;
+			case 'f': pom = 1; break;
+			case 'g': pom = 2; break;
+			case 'h': pom = 3; break;
+			case 'j': pom = 4; break;
+		}
+		if(redosledZica.struna[redosledZica.m] != key
+		   || redosledZica.n == redosledZica.m){
+			rezultat = 'g';
+			racunanjePoena();
+		} else{
+			redosledZica.m++;
+			pomeraj[pom].m++;
+		}
+	} else if (strchr("asdjkl", key) != NULL && brIgraca == 2){
+		int pom1;
+		char pom2;
+		switch(key){
+			case 'a': pom1 = 0; pom2 = 'd'; break;
+			case 's': pom1 = 1; pom2 = 'f'; break;
+			case 'd': pom1 = 2; pom2 = 'g'; break;
+			case 'j': pom1 = 2; pom2 = 'g'; break;
+			case 'k': pom1 = 3; pom2 = 'h'; break;
+			case 'l': pom1 = 4; pom2 = 'j'; break;
+		}
+		if(redosledZica.struna[redosledZica.m] != pom2
+		   || redosledZica.n == redosledZica.m){
+			rezultat = 'g';
+			racunanjePoena();
+		} else{
+			redosledZica.m++;
+			pomeraj[pom1].m++;
 		}
 	}
 
@@ -462,7 +569,9 @@ int main(int argc, char** argv){
 	glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
 
 	//pravi se prozor koji prekriva ceo ekran
-	glutCreateWindow("GUITAR HERO");
+	glutInitWindowSize(1000, 600);
+	glutInitWindowPosition(300, 700);
+	wid = glutCreateWindow("GUITAR HERO");
 	glutFullScreen();
 
 	//registruju se callback funkcije
@@ -472,10 +581,20 @@ int main(int argc, char** argv){
 
 	//inicijalizuju se pocetne vrednosti
 	velicinaProzora = 'o';
-	glClearColor(0.1, 0.1, 0.1, 0);
+	promena = 1;
+	glClearColor(0, 0, 0, 0);
 	mod = 'e'; //difoltni je najlaksi nivo
 	stanjeIgre = 'm'; //igra krece iz menija
 	muzika = 'i'; //po difoltu je muzika iskljucena
+	brIgraca = 1; //po difoltu 1, osim ako se ne unesu 2 imena
+	if(argc == 2){
+		ime1 = argv[1];
+	}
+	else if(argc == 3){
+		ime1 = argv[1];
+		ime2 = argv[2];
+		brIgraca = 2;
+	}
 
 	//ukljucivanje potrebnih specifikacija
 	glEnable(GL_DEPTH_TEST);
@@ -496,6 +615,15 @@ int main(int argc, char** argv){
 
 	GLfloat mambient[] = { 0.5, 0.5, 0.5, 1 };
 	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, mambient);
+
+	//pravimo prozor za pauzu
+	glutInitWindowSize(500, 300);
+	glutInitWindowPosition(300, 700);
+	sid = glutCreateWindow("pauza");
+
+	glutDisplayFunc(on_display);
+	glutKeyboardFunc(on_keyboard2);
+	glutReshapeFunc(on_reshape);
 
 	//pokrecemo glavnu petlju
 	glutMainLoop();
