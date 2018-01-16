@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <string.h>
+#include "SOIL.h"
 #include <GL/glut.h>
 
 #define DODATAK 0.25 //duzina za koju se mrdaju kuglice svakim redisplejem
@@ -33,11 +34,14 @@ typedef struct{
 	int m; //redni broj poslednje uklonjene kuglice
 } redosled;
 
+GLuint slike[12];
+
 static char velicinaProzora; // o/p -> ceo ekran/deo ekrana
 static char mod; // e/m/h -> easy/meadium/hard
 static char stanjeIgre; //m/i/p -> meni/igra/pauza 
 static char rezultat; // g/t/z/p -> gubitak/traje/zavrsnica/pobeda
 static char brIgraca; // 1/2 -> jedan/dva
+static char igraci; // 1/2/z -> prvi/drugi/zajedno
 
 static zica pomeraj[5]; //podaci o svakoj zici
 static redosled redosledZica; //redosled zica pojavljivanja kuglica
@@ -46,6 +50,10 @@ static redosled redosledZica; //redosled zica pojavljivanja kuglica
 static double pocetakIgre; //vreme pocetka igre
 static int sledecaKuglica; //redni broj kuglice cije se vreme sledece ceka
 static skor pogodak; //cuva vreme pogodjenih kuglica
+
+//jump scare
+static double jumpScareVreme;
+static char jumpScare; //0/1/2 -> nije vreme/slika1/slika2
 
 //pauza
 static int sid; //subwindow id
@@ -127,14 +135,24 @@ void loptica(int y, int linija){
 	glPopMatrix();
 }
 
+float abso(double a, double b){
+	if(a > b)
+		return a - b;
+	else if(b > a)
+		return b - a;
+	else
+		return 0;
+}
+
 
 void racunanjePoena(){
 	float poeni = 0;
 
 	int faktor;
+	double prioritet; 
 
 	switch(mod){
-		case 'e': faktor = 5; break;
+		case 'e': faktor = 1000; prioritet = 0.5; break;
 		case 'm':
 			//u medium modu se ne racuna skor,
 			//samo se opisuje nacin igre u zavisnosti
@@ -144,11 +162,16 @@ void racunanjePoena(){
 				printf("~nedovoljno duga igra za racunanje skora~\n");
 			return;
 			break;
-		case 'h': faktor = 2; break;
+		case 'h': faktor = 500; prioritet = 0.75; break;
 	}
 
 	for(int i = 0; i < pogodak.n; i++)
-		poeni += faktor / (labs(nizPesme[i] - pogodak.tipkanje[i]));
+		poeni += abso(nizPesme[i]+prioritet, pogodak.tipkanje[i]);
+	
+	if(poeni != 0)
+		poeni = faktor/poeni;
+	else
+		poeni = 0;
 
 	printf("%f", poeni);
 
@@ -159,14 +182,18 @@ void racunanjePoena(){
 		return;
 	}
 	
-	fprintf(f, "%.5f", poeni);
-	if(brIgraca == 1){
+	fprintf(f, "%.3f", poeni);
+	if(brIgraca == 1 && igraci == '1'){
 		if(ime1 != NULL)
 			fprintf(f, " %s", ime1);
 		else
 			fprintf(f, " anonimus1");
-	}
-	else if(brIgraca == 2){
+	} else if(brIgraca == 1 && igraci == '2'){
+		if(ime2 != NULL)
+			fprintf(f, " %s", ime2);
+		else
+			fprintf(f, " anonimus1");
+	}else if(brIgraca == 2){
 		if(ime1 != NULL)
 			fprintf(f, " %s i", ime1);
 		else 
@@ -180,6 +207,62 @@ void racunanjePoena(){
 	fclose(f);
 }
 
+void iscrtavanjeSlika(void){
+
+	GLfloat amb[] = { 1, 1, 1, 1 };
+	glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
+
+
+	int rbSlike = 0;
+	for(int i = -24; i < 24; i = i + 8){
+		glPushMatrix();	
+			 glFrontFace(GL_CW);		
+		    glEnable(GL_TEXTURE_2D);
+		    glBindTexture(GL_TEXTURE_2D, slike[rbSlike++]);
+		    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+		    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+		    glBegin(GL_QUADS);
+			glNormal3f(0.0f, -1.0f, 0.0f);
+			glTexCoord2f(0,1); glVertex3f(i, 40, 14);
+			glTexCoord2f(1,1); glVertex3f(i+8, 40, 14);
+			glTexCoord2f(1,0); glVertex3f(i+8, 40, 0);
+	  		glTexCoord2f(0,0); glVertex3f(i, 40, 0);
+	  	    glEnd();
+			//glFrontFace(GL_CCW);
+		glPopMatrix();
+	}
+
+}
+
+void iskacucaSlika(char p){
+
+	//trazimo redni broj slike na osnovu argumenta funkcije
+	int rbSlike;
+	switch(p){
+		case('j'): rbSlike = 6; break;
+		case('y'): rbSlike = 7; break;
+		case('p'): rbSlike = 10; break;
+		case('g'): rbSlike = 11; break;
+	}
+
+
+	glPushMatrix();
+	    glFrontFace(GL_CW);
+			
+	    glEnable(GL_TEXTURE_2D);
+    	    glBindTexture(GL_TEXTURE_2D, slike[rbSlike]);
+	    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+	    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+	    glBegin(GL_QUADS);
+		glNormal3f(0.0f, 1.0f, 0.0f);
+		glTexCoord2f(0,0); glVertex3f(-8,-2, 8);
+		glTexCoord2f(0,1); glVertex3f( 8,-2, 8);
+		glTexCoord2f(1,1); glVertex3f( 8,-2,-4);
+		glTexCoord2f(1,0); glVertex3f(-8,-2,-4);
+	    glEnd();
+		glFrontFace(GL_CCW);
+	glPopMatrix();
+}
 
 static void on_display(void){
 	//ako je potrebno menjati vidljivost prozora
@@ -261,25 +344,112 @@ static void on_display(void){
 		    glVertex3f( 8, daljina, 0);
 		glEnd();
 
-		//crtanje kuglica
-		for(int i = 0; i < 5; i++){
-			for(int j = pomeraj[i].m; j < pomeraj[i].n; j++)
-					loptica(pomeraj[i].y[j], i+1);
+		if(rezultat == 'g');
+			//iskacucaSlika('g'); //crtamo sliku gameover
+		else if(rezultat == 'p');
+			//iskacucaSlika('p'); //crtamo sliku win
+		else if(mod != 'm' || jumpScare == 0){
+			//crtanje kuglica
+			for(int i = 0; i < 5; i++){
+				for(int j = pomeraj[i].m; j < pomeraj[i].n; j++)
+						loptica(pomeraj[i].y[j], i+1);
+			}
+		} else { //crtamo slike jumpscare 1 i 2
+			if(jumpScare == 1);
+				//iskacucaSlika('y');
+		    	else;
+				//iskacucaSlika('j');
 		}
+
+		//iscrtavanjeSlika();
 
 	} else if(stanjeIgre == 'm'){ //meni
 		//postavljanje kamere
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
-		gluLookAt(0,0,5,
+		gluLookAt(0,0,10,
 			  0,0,0,
 			  0,1,0);
 
-		//prikaz instrukcija za 
+		GLfloat pozicija[] = { 0, 0, 11, 1 };
+		glLightfv(GL_LIGHT0, GL_POSITION, pozicija);
+
+		//prikaz instrukcija za meni
+
+		//prikazi sliku menija
+		/*glPushMatrix();			
+		    glEnable(GL_TEXTURE_2D);
+		    glBindTexture(GL_TEXTURE_2D, slike[9]);
+    		    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    		    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+		    glBegin(GL_QUADS);
+			glNormal3f(0.0f, 0.0f, 1.0f);
+			glTexCoord2f(0,1); glVertex3f(-4, 3, -0.3);
+			glTexCoord2f(0,0); glVertex3f( 4, 3, -0.3);
+			glTexCoord2f(1,0); glVertex3f( 4,-3, -0.3);
+			glTexCoord2f(1,1); glVertex3f(-4,-3, -0.3);
+		    glEnd();
+		glPopMatrix();*/
+
+		//prikazi kuglice
+		GLfloat amb[] = { 0.2, 1, 0.4, 0.3 };
+		glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
+
+		//kuglica za pokazivanje moda igre
+		int pom;
+ 		switch(mod){
+			case('e'): pom = -2; break;
+			case('m'): pom =  0; break;
+			case('h'): pom =  2; break;
+		}
+		glPushMatrix();
+		    glTranslatef(pom, 1.5,0);
+		    glutSolidSphere(0.25,30,30);
+		glPopMatrix();
+
+		//kuglica za pokazivanje aktivnih igraca
+ 		switch(igraci){
+			case('1'): pom = -2; break;
+			case('2'): pom =  0; break;
+			case('z'): pom =  2; break;
+		}
+
+		glPushMatrix();
+		    glTranslatef(pom, -1.5,0);
+		    glutSolidSphere(0.25,30,30);
+		glPopMatrix();
 
 	} else if(stanjeIgre == 'p'){ //pauza
-		//prikazuju se samo instrukcije 
-		//za odabir menija/igre/kraja igrice
+		//postavljanje kamere
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+		gluLookAt(0,5,0,
+			  0,0,0,
+			  0,0,1);
+
+		//prikazuju se samo instrukcije
+		/*glPushMatrix();	
+		    	glBegin( GL_POLYGON);
+			glColor3f(1,0,0);
+			glNormal3f(0.0f, 1.0f, 0.0f);
+			 glVertex3f(-4,0,-2.5);
+			 glVertex3f(-4,0,2.5);
+			 glVertex3f(4,0,2.5);
+			 glVertex3f(4,0,-2.5);
+		    glEnd();
+		    glEnable(GL_TEXTURE_2D);
+		    glBindTexture(GL_TEXTURE_2D, slike[1]);
+    		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+		    glBegin(GL_QUADS);
+			glColor3f(1,0,0);
+			glNormal3f(0.0f, 1.0f, 0.0f);
+			glTexCoord2f(0,0); glVertex3f(-4,0,-2.5);
+			glTexCoord2f(0,1); glVertex3f(-4,0,2.5);
+			glTexCoord2f(1,1); glVertex3f(4,0,2.5);
+			glTexCoord2f(1,0); glVertex3f(4,0,-2.5);
+		    glEnd();
+		glPopMatrix();*/
 	}
 
 	glutSwapBuffers();
@@ -328,6 +498,15 @@ static void on_timer(int value)
 		tekuceVreme = tv.tv_sec + 0.000001 * tv.tv_usec 
 			     - pocetakIgre - pauza;
 
+		if(mod == 'm' && tekuceVreme - jumpScareVreme < 1 &&
+				 tekuceVreme - jumpScareVreme > -1){
+			jumpScare = (int)(tekuceVreme) %2 + 1;
+
+			if(tekuceVreme - jumpScareVreme > 7)
+				rezultat = 'p';
+		} else
+
+
 		//ako je vreme za novu kuglicu
 		if(tekuceVreme - nizPesme[sledecaKuglica] < TOLERANCIJA 
 		&& tekuceVreme - nizPesme[sledecaKuglica] > -TOLERANCIJA){
@@ -364,7 +543,6 @@ static void on_timer(int value)
 					}
 					redosledZica.struna[redosledZica.n] = pom;
 					redosledZica.n++;
-					printf("%c\n", pom);
 				}
 			}
 	
@@ -385,14 +563,12 @@ static void on_timer(int value)
 	//provera je li kraj igre:
 	//ako je igra predjena
 	if(rezultat == 'p'){
-		//dodati funkciju za proglasavanje pobede
 		stanjeIgre = 'm';
 		sleep(5);
 	}
 
 	//ako je igra izgubljena
 	if(rezultat == 'g'){
-		//dodati funkciju za proglasavanje poraza
 		stanjeIgre = 'm';
 		sleep(5);
 	}
@@ -481,7 +657,7 @@ static void on_keyboard(unsigned char key, int x, int y){
 				exit(1);
 			}
 
-			if(mod == 'e'){
+			if(mod == 'e' || mod == 'm' || mod == 'h'){
 				fscanf(f, "%d\n", &brNota);
 /*dealocirati!*/		nizPesme = calloc(sizeof(double), brNota);
 				if(nizPesme == NULL){
@@ -523,7 +699,7 @@ static void on_keyboard(unsigned char key, int x, int y){
 			//momentalni poziv funkcije
 			glutTimerFunc(0.1, on_timer, 0);
 		}
-	} else if(strchr("dfghj", key) != NULL && brIgraca == 1){
+	} else if(strchr("dfghj", key) != NULL && brIgraca == 1 && stanjeIgre == 'i' && (rezultat == 't' || rezultat == 'z')){
 		int pom;
 		switch(key){
 			case 'd': pom = 0; break;
@@ -537,10 +713,14 @@ static void on_keyboard(unsigned char key, int x, int y){
 			rezultat = 'g';
 			racunanjePoena();
 		} else{
+			struct timeval pomt;
+			gettimeofday(&pomt, NULL);
+
+			pogodak.tipkanje[pogodak.n++] = pomt.tv_sec + 0.000001*pomt.tv_usec;
 			redosledZica.m++;
 			pomeraj[pom].m++;
 		}
-	} else if (strchr("asdjkl", key) != NULL && brIgraca == 2){
+	} else if (strchr("asdjkl", key) != NULL && brIgraca == 2 && stanjeIgre == 'i' && (rezultat == 't' || rezultat == 'z')){
 		int pom1;
 		char pom2;
 		switch(key){
@@ -556,11 +736,136 @@ static void on_keyboard(unsigned char key, int x, int y){
 			rezultat = 'g';
 			racunanjePoena();
 		} else{
+			struct timeval pomt;
+			gettimeofday(&pomt, NULL);
+
+			pogodak.tipkanje[pogodak.n++] = pomt.tv_sec + 0.000001*pomt.tv_usec;
+
 			redosledZica.m++;
 			pomeraj[pom1].m++;
 		}
+	} else if(stanjeIgre == 'm' && (key == 'e' || key == 'E')){
+		mod = 'e';
+		glutPostRedisplay();
+	} else if(stanjeIgre == 'm' && (key == 'm' || key == 'M')){
+		mod = 'm';
+		glutPostRedisplay();
+	} else if(stanjeIgre == 'm' && (key == 'h' || key == 'H')){
+		mod = 'h';
+		glutPostRedisplay();
+	} else if(stanjeIgre == 'm' && key == '1'){
+		igraci = '1';
+		glutPostRedisplay();
+	}else if(stanjeIgre == 'm' && key == '2'){
+		igraci = '2';
+		glutPostRedisplay();
+	}else if(stanjeIgre == 'm' && (key == 'z' || key == 'Z')){
+		igraci = 'z';
+		glutPostRedisplay();
 	}
+}
 
+int ucitajSlike(void){
+	int brojac = 0;
+	slike[0] = SOIL_load_OGL_texture("./slikeLinkinPark/bred.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[0])
+		brojac++;
+
+	slike[1] = SOIL_load_OGL_texture("./slikeLinkinPark/cester.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[1])
+		brojac++;
+
+	slike[2] = SOIL_load_OGL_texture("./slikeLinkinPark/sinoda.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[2])
+		brojac++;
+
+	slike[3] = SOIL_load_OGL_texture("./slikeLinkinPark/rob.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[3])
+		brojac++;
+
+	slike[4] = SOIL_load_OGL_texture("./slikeLinkinPark/han.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[4])
+		brojac++;
+
+	slike[5] = SOIL_load_OGL_texture("./slikeLinkinPark/phoenix.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[5])
+		brojac++;
+
+	slike[6] = SOIL_load_OGL_texture("./slikeLinkinPark/jumpscare1.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[6])
+		brojac++;
+
+	slike[7] = SOIL_load_OGL_texture("./slikeLinkinPark/jumpscare2.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[7])
+		brojac++;
+
+	slike[8] = SOIL_load_OGL_texture("./slikeLinkinPark/pauza.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[8])
+		brojac++;
+
+	slike[9] = SOIL_load_OGL_texture("./slikeLinkinPark/meni.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[9])
+		brojac++;
+
+	slike[10] = SOIL_load_OGL_texture("./slikeLinkinPark/win.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_MIPMAPS | SOIL_FLAG_INVERT_Y | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT);
+
+	if(slike[10])
+		brojac++;
+
+	slike[11] = SOIL_load_OGL_texture("./slikeLinkinPark/gameover.png",
+					 SOIL_LOAD_AUTO,
+					 SOIL_CREATE_NEW_ID,
+					 SOIL_FLAG_INVERT_Y);
+
+	if(slike[11])
+		brojac++;
+
+	glFlush();
+
+	return brojac;
 }
 
 int main(int argc, char** argv){
@@ -585,8 +890,11 @@ int main(int argc, char** argv){
 	glClearColor(0, 0, 0, 0);
 	mod = 'e'; //difoltni je najlaksi nivo
 	stanjeIgre = 'm'; //igra krece iz menija
+	jumpScareVreme = 15.132;
+	jumpScare = 0;
 	muzika = 'i'; //po difoltu je muzika iskljucena
 	brIgraca = 1; //po difoltu 1, osim ako se ne unesu 2 imena
+	igraci = '1';
 	if(argc == 2){
 		ime1 = argv[1];
 	}
@@ -594,6 +902,11 @@ int main(int argc, char** argv){
 		ime1 = argv[1];
 		ime2 = argv[2];
 		brIgraca = 2;
+		igraci = 'z';
+	}
+	if(12 != ucitajSlike()){
+		printf("neke slike nisu uspesno ucitane\n");
+		exit(1);
 	}
 
 	//ukljucivanje potrebnih specifikacija
@@ -624,6 +937,9 @@ int main(int argc, char** argv){
 	glutDisplayFunc(on_display);
 	glutKeyboardFunc(on_keyboard2);
 	glutReshapeFunc(on_reshape);
+
+/*	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);*/
 
 	//pokrecemo glavnu petlju
 	glutMainLoop();
