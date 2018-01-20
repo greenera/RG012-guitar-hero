@@ -7,9 +7,9 @@ Guitar hero
   <li> e/m/h - easy/medium/hard nivo</li>
   <li> o/p - fullscreen/manji prozor</li>
   <li> esc/enter - izlazak iz programa/pocetak igre</li>
-  <li> tasteri za uklanjanje kuglica za dva igraca: 
+  <ul> tasteri za uklanjanje kuglica za dva igraca: 
     <li>a/s/d - prva/druga/treca zica</li>
-    <li>j/k/l - treca/cetvrta/peta zica</li> </li>
+    <li>j/k/l - treca/cetvrta/peta zica</li> </ul>
   <li> tasteri za uklanjanje kuglica za jednog igraca: 
     <li>d/f/g/h/j - prva/druga/treca/cetvrta/peta zica</li> </li>
   <li>esc - taster za stopoiranje (dalje obajasnjenje prikazano je u prozoru)</li>
@@ -24,7 +24,6 @@ Guitar hero
   <li>igra se zavrsava pobedom ukoliko su sve kuglice otklonjene</li>
   <li>postignut skor je zapisan u fajlu skor.txt i u terminalu, na kraju svih igara </li>
   <li>kuglice izlaze u ritmu pesme One more light od Linkin Park koja se moze naci na ovom linku: https://www.youtube.com/watch?v=Tm8LGxTLtQk</li>
-  <li> </li>
 </ul>
 
 ## Kompilacija sa: 

@@ -209,60 +209,63 @@ void racunanjePoena(){
 
 void iscrtavanjeSlika(void){
 
-	GLfloat amb[] = { 1, 1, 1, 1 };
+	GLfloat amb[] = { 1, 1, 1, 0.5 };
 	glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
 
 
 	int rbSlike = 0;
 	for(int i = -24; i < 24; i = i + 8){
 		glPushMatrix();	
-			 glFrontFace(GL_CW);		
 		    glEnable(GL_TEXTURE_2D);
 		    glBindTexture(GL_TEXTURE_2D, slike[rbSlike++]);
-		    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-		    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
 		    glBegin(GL_QUADS);
-			glNormal3f(0.0f, -1.0f, 0.0f);
-			glTexCoord2f(0,1); glVertex3f(i, 40, 14);
-			glTexCoord2f(1,1); glVertex3f(i+8, 40, 14);
-			glTexCoord2f(1,0); glVertex3f(i+8, 40, 0);
 	  		glTexCoord2f(0,0); glVertex3f(i, 40, 0);
+			glTexCoord2f(1,0); glVertex3f(i+8, 40, 0);
+			glTexCoord2f(1,1); glVertex3f(i+8, 40, 10);
+			glTexCoord2f(0,1); glVertex3f(i, 40, 10);
 	  	    glEnd();
-			//glFrontFace(GL_CCW);
 		glPopMatrix();
 	}
 
 }
 
-void iskacucaSlika(char p){
+void iskacucaSlika(char slika){
 
 	//trazimo redni broj slike na osnovu argumenta funkcije
 	int rbSlike;
-	switch(p){
-		case('j'): rbSlike = 6; break;
-		case('y'): rbSlike = 7; break;
-		case('p'): rbSlike = 10; break;
-		case('g'): rbSlike = 11; break;
+	float x, y, z1, z2;
+	switch(slika){
+		case('j'): 
+			rbSlike = 6;
+			x = 4; y = -3; z1 = 4; z2 = -4;
+			break;
+		case('y'): 
+			rbSlike = 7;
+			x = 4; y = -3; z1 = 4; z2 = -4;
+			break;
+		case('p'): 
+			rbSlike = 10; 
+			x = 6; y = -1; z1 = 6; z2 = 1;
+			break;
+		case('g'): 
+			rbSlike = 11; 
+			x = 6; y = -1; z1 = 6; z2 = 0;
+			break;
 	}
 
-
-	glPushMatrix();
-	    glFrontFace(GL_CW);
-			
+	glPushMatrix();	
 	    glEnable(GL_TEXTURE_2D);
     	    glBindTexture(GL_TEXTURE_2D, slike[rbSlike]);
-	    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-	    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
 	    glBegin(GL_QUADS);
-		glNormal3f(0.0f, 1.0f, 0.0f);
-		glTexCoord2f(0,0); glVertex3f(-8,-2, 8);
-		glTexCoord2f(0,1); glVertex3f( 8,-2, 8);
-		glTexCoord2f(1,1); glVertex3f( 8,-2,-4);
-		glTexCoord2f(1,0); glVertex3f(-8,-2,-4);
+		glTexCoord2f(0,0); glVertex3f(-1*x, y, z2);
+		glTexCoord2f(1,0); glVertex3f(   x, y, z2);
+		glTexCoord2f(1,1); glVertex3f(   x, y, z1);
+		glTexCoord2f(0,1); glVertex3f(-1*x, y, z1);
 	    glEnd();
-		glFrontFace(GL_CCW);
 	glPopMatrix();
 }
+
+void inicijalizacijaProstora(void);
 
 static void on_display(void){
 	//ako je potrebno menjati vidljivost prozora
@@ -311,58 +314,60 @@ static void on_display(void){
 			  0,  2,0,
 			  0,  0,1);
 
-		//crtanje zica
-		for(int x = -8; x <9; x = x+4){
-		    glBegin(GL_LINE_STRIP);
-			glVertex3f(x, -7, 0);
-			glVertex3f(x, 40, 0);
-		    glEnd();
-		}
-
-		//zica prekoracenja
-		amb[1] = 0;
-		amb[2] = 0;
-		glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
-		glBegin(GL_LINE_STRIP);
-		    glVertex3f(-8, -2, 0);
-		    glVertex3f(8, -2, 0);
-		glEnd();
-
-		//zica prioriteta
-		int daljina;
-		switch(mod){
-			case 'e': daljina = 11; break;
-			case 'm': daljina = 7; break;
-			case 'h': daljina = 4; break;
-		}
-
-		amb[1] = 0.8;
-		amb[0] = 0.9;
-		glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
-		glBegin(GL_LINE_STRIP);
-		    glVertex3f(-8, daljina, 0);
-		    glVertex3f( 8, daljina, 0);
-		glEnd();
-
-		if(rezultat == 'g');
-			//iskacucaSlika('g'); //crtamo sliku gameover
-		else if(rezultat == 'p');
-			//iskacucaSlika('p'); //crtamo sliku win
+		if(rezultat == 'g')
+			iskacucaSlika('g'); //crtamo sliku gameover
+		else if(rezultat == 'p')
+			iskacucaSlika('p'); //crtamo sliku win
 		else if(mod != 'm' || jumpScare == 0){
+			iscrtavanjeSlika();
+
+			//crtanje zica
+			for(int x = -8; x <9; x = x+4){
+			    glBegin(GL_LINE_STRIP);
+				glVertex3f(x, -7, 0);
+				glVertex3f(x, 40, 0);
+			    glEnd();
+			}
+
+			//zica prekoracenja
+			//GLfloat amb[] = { 1, 1, 1, 1 };
+			amb[1] = 0;
+			amb[2] = 0;
+			glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
+			glBegin(GL_LINE_STRIP);
+			    glVertex3f(-8, -2, 0);
+			    glVertex3f(8, -2, 0);
+			glEnd();
+
+			//zica prioriteta
+			int daljina;
+			switch(mod){
+				case 'e': daljina = 11; break;
+				case 'm': daljina = 7; break;
+				case 'h': daljina = 4; break;
+			}
+
+			amb[1] = 0.8;
+			amb[0] = 0.9;
+			glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
+			glBegin(GL_LINE_STRIP);
+			    glVertex3f(-8, daljina, 0);
+			    glVertex3f( 8, daljina, 0);
+			glEnd();
+
 			//crtanje kuglica
 			for(int i = 0; i < 5; i++){
 				for(int j = pomeraj[i].m; j < pomeraj[i].n; j++)
 						loptica(pomeraj[i].y[j], i+1);
 			}
+			
+
 		} else { //crtamo slike jumpscare 1 i 2
-			if(jumpScare == 1);
-				//iskacucaSlika('y');
-		    	else;
-				//iskacucaSlika('j');
+			if(jumpScare == 1)
+				iskacucaSlika('y');
+		    	else
+				iskacucaSlika('j');
 		}
-
-		//iscrtavanjeSlika();
-
 	} else if(stanjeIgre == 'm'){ //meni
 		//postavljanje kamere
 		glMatrixMode(GL_MODELVIEW);
@@ -371,51 +376,49 @@ static void on_display(void){
 			  0,0,0,
 			  0,1,0);
 
-		GLfloat pozicija[] = { 0, 0, 11, 1 };
+		GLfloat pozicija[] = { 0, 0, 10, 1 };
 		glLightfv(GL_LIGHT0, GL_POSITION, pozicija);
 
-		//prikaz instrukcija za meni
-
-		//prikazi sliku menija
-		/*glPushMatrix();			
-		    glEnable(GL_TEXTURE_2D);
-		    glBindTexture(GL_TEXTURE_2D, slike[9]);
-    		    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    		    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-		    glBegin(GL_QUADS);
-			glNormal3f(0.0f, 0.0f, 1.0f);
-			glTexCoord2f(0,1); glVertex3f(-4, 3, -0.3);
-			glTexCoord2f(0,0); glVertex3f( 4, 3, -0.3);
-			glTexCoord2f(1,0); glVertex3f( 4,-3, -0.3);
-			glTexCoord2f(1,1); glVertex3f(-4,-3, -0.3);
-		    glEnd();
-		glPopMatrix();*/
-
-		//prikazi kuglice
-		GLfloat amb[] = { 0.2, 1, 0.4, 0.3 };
+		GLfloat amb[] = { 1, 1, 1, 1 };
 		glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
 
-		//kuglica za pokazivanje moda igre
-		int pom;
+		//prikaz instrukcija za meni:
+
+		////prikazi sliku menija
+		glPushMatrix();			
+		    glEnable(GL_TEXTURE_2D);
+		    glBindTexture(GL_TEXTURE_2D, slike[9]);
+ 		    glBegin(GL_QUADS);
+			glTexCoord2f(0,0); glVertex3f(-7.5,-3, -0.3);
+			glTexCoord2f(1,0); glVertex3f( 7.5,-3, -0.3);
+			glTexCoord2f(1,1); glVertex3f( 7.5, 3, -0.3);
+			glTexCoord2f(0,1); glVertex3f(-7.5, 3, -0.3);
+		    glEnd();
+		glPopMatrix();
+
+		////prikazi kuglice:
+
+		//////kuglica za pokazivanje moda igre
+		float pom;
  		switch(mod){
-			case('e'): pom = -2; break;
-			case('m'): pom =  0; break;
-			case('h'): pom =  2; break;
+			case('e'): pom = -1.25; break;
+			case('m'): pom =  2.25; break;
+			case('h'): pom =  5.5; break;
 		}
 		glPushMatrix();
-		    glTranslatef(pom, 1.5,0);
+		    glTranslatef(pom, 0.9,0.5);
 		    glutSolidSphere(0.25,30,30);
 		glPopMatrix();
 
-		//kuglica za pokazivanje aktivnih igraca
+		//////kuglica za pokazivanje aktivnih igraca
  		switch(igraci){
-			case('1'): pom = -2; break;
-			case('2'): pom =  0; break;
-			case('z'): pom =  2; break;
+			case('1'): pom = -1.25; break;
+			case('z'): pom =  2.25; break;
+			case('2'): pom =  5.4; break;
 		}
 
 		glPushMatrix();
-		    glTranslatef(pom, -1.5,0);
+		    glTranslatef(pom, -0.9,0.5);
 		    glutSolidSphere(0.25,30,30);
 		glPopMatrix();
 
@@ -423,33 +426,29 @@ static void on_display(void){
 		//postavljanje kamere
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
-		gluLookAt(0,5,0,
+		gluLookAt(0,0,10,
 			  0,0,0,
-			  0,0,1);
+			  0,1,0);
 
-		//prikazuju se samo instrukcije
-		/*glPushMatrix();	
-		    	glBegin( GL_POLYGON);
-			glColor3f(1,0,0);
-			glNormal3f(0.0f, 1.0f, 0.0f);
-			 glVertex3f(-4,0,-2.5);
-			 glVertex3f(-4,0,2.5);
-			 glVertex3f(4,0,2.5);
-			 glVertex3f(4,0,-2.5);
-		    glEnd();
+		//GLfloat pozicija[] = { 0, 0, 10, 1 };
+		//glLightfv(GL_LIGHT0, GL_POSITION, pozicija);
+
+		//prikazi sliku menija
+		glPushMatrix();			
 		    glEnable(GL_TEXTURE_2D);
-		    glBindTexture(GL_TEXTURE_2D, slike[1]);
-    		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-		    glBegin(GL_QUADS);
-			glColor3f(1,0,0);
-			glNormal3f(0.0f, 1.0f, 0.0f);
-			glTexCoord2f(0,0); glVertex3f(-4,0,-2.5);
-			glTexCoord2f(0,1); glVertex3f(-4,0,2.5);
-			glTexCoord2f(1,1); glVertex3f(4,0,2.5);
-			glTexCoord2f(1,0); glVertex3f(4,0,-2.5);
+		    glBindTexture(GL_TEXTURE_2D, slike[10]);
+ 		    glBegin(GL_QUADS);
+/*			glTexCoord2f(0,0); glVertex3f(-7.5,-3, -0.3);
+			glTexCoord2f(1,0); glVertex3f( 7.5,-3, -0.3);
+			glTexCoord2f(1,1); glVertex3f( 7.5, 3, -0.3);
+			glTexCoord2f(0,1); glVertex3f(-7.5, 3, -0.3);
+*/
+			glTexCoord2f(0,0); glVertex3f(-7.5,-3, -0.3);
+			glTexCoord2f(0,1); glVertex3f(-7.5, 3, -0.3);
+			glTexCoord2f(1,1); glVertex3f( 7.5, 3, -0.3);
+			glTexCoord2f(1,0); glVertex3f( 7.5,-3, -0.3);
 		    glEnd();
-		glPopMatrix();*/
+		glPopMatrix();
 	}
 
 	glutSwapBuffers();
@@ -467,6 +466,7 @@ pomeraj[i].m = pomeraj[i].n - 5 > 0 ? pomeraj[i].n - 5 : 0;*/
 		if(pomeraj[i].y[j] < -2){
 			rezultat = 'g';
 			racunanjePoena();
+			glutPostRedisplay();
 		}
 	}
 }
@@ -563,14 +563,14 @@ static void on_timer(int value)
 	//provera je li kraj igre:
 	//ako je igra predjena
 	if(rezultat == 'p'){
-		stanjeIgre = 'm';
 		sleep(5);
+		stanjeIgre = 'm';
 	}
 
 	//ako je igra izgubljena
 	if(rezultat == 'g'){
-		stanjeIgre = 'm';
 		sleep(5);
+		stanjeIgre = 'm';
 	}
 
 	//ako je igra pauzirana -> stanje igre je vec promenjeno
@@ -696,7 +696,7 @@ static void on_keyboard(unsigned char key, int x, int y){
 			//sid za random biranje zice
 			srand(pocetakIgre);
 
-			//momentalni poziv funkcije
+			//pokretanje animacije
 			glutTimerFunc(0.1, on_timer, 0);
 		}
 	} else if(strchr("dfghj", key) != NULL && brIgraca == 1 && stanjeIgre == 'i' && (rezultat == 't' || rezultat == 'z')){
@@ -767,105 +767,55 @@ static void on_keyboard(unsigned char key, int x, int y){
 
 int ucitajSlike(void){
 	int brojac = 0;
-	slike[0] = SOIL_load_OGL_texture("./slikeLinkinPark/bred.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
 
-	if(slike[0])
-		brojac++;
+	char* putanjeSlika[] = {"./slikeLinkinPark/bred.png",
+				"./slikeLinkinPark/cester.png",
+				"./slikeLinkinPark/sinoda.png",
+				"./slikeLinkinPark/rob.png",
+				"./slikeLinkinPark/han.png",
+				"./slikeLinkinPark/phoenix.png",
+				"./slikeLinkinPark/jumpscare1.png",
+				"./slikeLinkinPark/jumpscare2.png",
+				"./slikeLinkinPark/pauza.png",
+				"./slikeLinkinPark/meni.png",
+				"./slikeLinkinPark/win.png",
+				"./slikeLinkinPark/gameover.png",};
+	
+	for(int i = 0; i < 12; i++){
+		slike[i] = SOIL_load_OGL_texture(putanjeSlika[i],
+						 SOIL_LOAD_AUTO,
+						 SOIL_CREATE_NEW_ID,
+						 SOIL_FLAG_INVERT_Y);
 
-	slike[1] = SOIL_load_OGL_texture("./slikeLinkinPark/cester.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[1])
-		brojac++;
-
-	slike[2] = SOIL_load_OGL_texture("./slikeLinkinPark/sinoda.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[2])
-		brojac++;
-
-	slike[3] = SOIL_load_OGL_texture("./slikeLinkinPark/rob.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[3])
-		brojac++;
-
-	slike[4] = SOIL_load_OGL_texture("./slikeLinkinPark/han.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[4])
-		brojac++;
-
-	slike[5] = SOIL_load_OGL_texture("./slikeLinkinPark/phoenix.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[5])
-		brojac++;
-
-	slike[6] = SOIL_load_OGL_texture("./slikeLinkinPark/jumpscare1.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[6])
-		brojac++;
-
-	slike[7] = SOIL_load_OGL_texture("./slikeLinkinPark/jumpscare2.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[7])
-		brojac++;
-
-	slike[8] = SOIL_load_OGL_texture("./slikeLinkinPark/pauza.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[8])
-		brojac++;
-
-	slike[9] = SOIL_load_OGL_texture("./slikeLinkinPark/meni.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[9])
-		brojac++;
-
-	slike[10] = SOIL_load_OGL_texture("./slikeLinkinPark/win.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_MIPMAPS | SOIL_FLAG_INVERT_Y | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT);
-
-	if(slike[10])
-		brojac++;
-
-	slike[11] = SOIL_load_OGL_texture("./slikeLinkinPark/gameover.png",
-					 SOIL_LOAD_AUTO,
-					 SOIL_CREATE_NEW_ID,
-					 SOIL_FLAG_INVERT_Y);
-
-	if(slike[11])
-		brojac++;
+		if(slike[i])
+			brojac++;
+	}
 
 	glFlush();
 
 	return brojac;
+}
+
+void inicijalizacijaProstora(void){
+	//ukljucivanje potrebnih specifikacija
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+
+	//podesavanje osobina osvetljenja
+	GLfloat ambient[] = { 1, 1, 1, 1 };
+	glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+
+	GLfloat diffuse[] = { 1, 1, 1, 1 };
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+
+	GLfloat specular[] = { 0.7, 0.7, 0.7, 1 };
+	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
+
+	GLfloat mambient[] = { 0.5, 0.5, 0.5, 1 };
+	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, mambient);
 }
 
 int main(int argc, char** argv){
@@ -874,7 +824,7 @@ int main(int argc, char** argv){
 	glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
 
 	//pravi se prozor koji prekriva ceo ekran
-	glutInitWindowSize(1000, 600);
+	glutInitWindowSize(1700, 900);
 	glutInitWindowPosition(300, 700);
 	wid = glutCreateWindow("GUITAR HERO");
 	glutFullScreen();
@@ -887,7 +837,7 @@ int main(int argc, char** argv){
 	//inicijalizuju se pocetne vrednosti
 	velicinaProzora = 'o';
 	promena = 1;
-	glClearColor(0, 0, 0, 0);
+	glClearColor(1,1,1,1);
 	mod = 'e'; //difoltni je najlaksi nivo
 	stanjeIgre = 'm'; //igra krece iz menija
 	jumpScareVreme = 15.132;
@@ -904,30 +854,13 @@ int main(int argc, char** argv){
 		brIgraca = 2;
 		igraci = 'z';
 	}
+	//ucitavanje slika
 	if(12 != ucitajSlike()){
 		printf("neke slike nisu uspesno ucitane\n");
 		exit(1);
 	}
 
-	//ukljucivanje potrebnih specifikacija
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
-	glEnable(GL_LIGHTING);
-	glEnable(GL_LIGHT0);
-
-	//podesavanje osobina osvetljenja
-	GLfloat ambient[] = { 0.1, 0.1, 0.1, 1 };
-	glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
-
-	GLfloat diffuse[] = { 1, 1, 1, 1 };
-	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
-
-	GLfloat specular[] = { 0.7, 0.7, 0.7, 1 };
-	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
-
-	GLfloat mambient[] = { 0.5, 0.5, 0.5, 1 };
-	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, mambient);
+	inicijalizacijaProstora();
 
 	//pravimo prozor za pauzu
 	glutInitWindowSize(500, 300);
@@ -937,9 +870,7 @@ int main(int argc, char** argv){
 	glutDisplayFunc(on_display);
 	glutKeyboardFunc(on_keyboard2);
 	glutReshapeFunc(on_reshape);
-
-/*	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);*/
+	inicijalizacijaProstora();
 
 	//pokrecemo glavnu petlju
 	glutMainLoop();
