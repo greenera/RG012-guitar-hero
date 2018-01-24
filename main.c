@@ -807,7 +807,7 @@ int main(int argc, char** argv){
 	glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
 
 	//pravi se prozor koji prekriva ceo ekran
-	glutInitWindowSize(1700, 900);
+	glutInitWindowSize(1000,600);
 	glutInitWindowPosition(300, 700);
 	glutCreateWindow("GUITAR HERO");
 	glutFullScreen();
