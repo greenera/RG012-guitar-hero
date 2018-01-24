@@ -56,11 +56,8 @@ static double jumpScareVreme;
 static char jumpScare; //0/1/2 -> nije vreme/slika1/slika2
 
 //pauza
-static int sid; //subwindow id
-static int wid; //window id (id glavnog prozora)
 static double pocetakPauze; //vreme pri pocetku pauze
 static double pauza; //merac trajanja pauze
-static char promena; // 0/1 u zavisnosti da li treba menjati vidljivost potprozora
 
 //podaci iz datoteke
 static double *nizPesme; //niz vremena kada treba da se pojavi kruzic
@@ -268,22 +265,6 @@ void iskacucaSlika(char slika){
 void inicijalizacijaProstora(void);
 
 static void on_display(void){
-	//ako je potrebno menjati vidljivost prozora
-	if(promena){
-		if(stanjeIgre != 'p'){
-			glutSetWindow(sid);
-			glutHideWindow();
-			glutSetWindow(wid);
-			glutTimerFunc(bkk, on_timer, 0);
-			//posle ovoga je potrebno pritisnuti bilo koje 
-			//dugme da bi se aplikacija nastavila			
-		} else {
-			glutSetWindow(sid);
-			glutShowWindow();
-		}
-		promena = 0;
-	}
-
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	if(stanjeIgre == 'i'){ //igra
@@ -430,23 +411,21 @@ static void on_display(void){
 			  0,0,0,
 			  0,1,0);
 
-		//GLfloat pozicija[] = { 0, 0, 10, 1 };
-		//glLightfv(GL_LIGHT0, GL_POSITION, pozicija);
+		GLfloat pozicija[] = { 0, 0, 10, 1 };
+		glLightfv(GL_LIGHT0, GL_POSITION, pozicija);
+
+		GLfloat amb[] = { 0, 1, 0, 1 };
+		glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
 
 		//prikazi sliku menija
 		glPushMatrix();			
 		    glEnable(GL_TEXTURE_2D);
-		    glBindTexture(GL_TEXTURE_2D, slike[10]);
+		    glBindTexture(GL_TEXTURE_2D, slike[8]);
  		    glBegin(GL_QUADS);
-/*			glTexCoord2f(0,0); glVertex3f(-7.5,-3, -0.3);
-			glTexCoord2f(1,0); glVertex3f( 7.5,-3, -0.3);
-			glTexCoord2f(1,1); glVertex3f( 7.5, 3, -0.3);
-			glTexCoord2f(0,1); glVertex3f(-7.5, 3, -0.3);
-*/
 			glTexCoord2f(0,0); glVertex3f(-7.5,-3, -0.3);
-			glTexCoord2f(0,1); glVertex3f(-7.5, 3, -0.3);
-			glTexCoord2f(1,1); glVertex3f( 7.5, 3, -0.3);
 			glTexCoord2f(1,0); glVertex3f( 7.5,-3, -0.3);
+			glTexCoord2f(1,1); glVertex3f( 7.5, 3, -0.3);
+			glTexCoord2f(0,1); glVertex3f(-7.5, 3, -0.3);
 		    glEnd();
 		glPopMatrix();
 	}
@@ -580,41 +559,23 @@ static void on_timer(int value)
 		glutTimerFunc(bkk, on_timer, 0);
 }
 
-static void on_keyboard2(unsigned char key, int x, int y){
-	if(key == 27 || key == 'i'){ //nazad u igru		
+
+static void on_keyboard(unsigned char key, int x, int y){
+	if(key == 27){
+		if(stanjeIgre == 'm')
+			exit(0);
+		else if(stanjeIgre == 'p'){
+		//nazad u igru		
 		stanjeIgre = 'i';
-		promena = 1;
 
 		//podesavanje vremena pauze
 		struct timeval pom;
 		gettimeofday(&pom, NULL); 
 		pauza += pom.tv_sec + 0.000001 * pom.tv_usec - pocetakPauze;
 
-		glutPostRedisplay();
-	
-	} else if(key == 'm'){ //nazad u meni
-		
-		//dealokacija memorije
-		free(nizPesme);
-		for(int i = 0; i < 5; i++)
-				free(pomeraj[i].y);
-		free(pogodak.tipkanje);
-		free(redosledZica.struna);
-		
-		stanjeIgre = 'm';
-		promena = 1;
-		glutPostRedisplay();
-	}
-}
+		glutTimerFunc(bkk, on_timer, 0);
 
-static void on_keyboard(unsigned char key, int x, int y){
-	if(key == 27){
-		if(stanjeIgre == 'm')
-			exit(0);
-		/*else if(stanjeIgre == 'p'){
-		ovo stanje ima svoj prozor gde
-		je obradjena reakcija na esc }*/		
-		else if(stanjeIgre == 'i'){
+		}else if(stanjeIgre == 'i'){
 			//ako je muzika ukljucena pauza nije, izlazi se iz programa
 			if(muzika == 'u'){
 				stanjeIgre = 'm';
@@ -625,8 +586,7 @@ static void on_keyboard(unsigned char key, int x, int y){
 				gettimeofday(&pom, NULL);
 				pocetakPauze = pom.tv_sec + 0.000001 * pom.tv_usec;
 
-				stanjeIgre = 'p';
-				promena = 1; 
+				stanjeIgre = 'p'; 
 				glutPostRedisplay();
 			}
 		}
@@ -644,7 +604,7 @@ static void on_keyboard(unsigned char key, int x, int y){
 			velicinaProzora = 'p';
 			glutReshapeWindow(1000,600);
 		}
-	} else if(key == 13){
+	} else if(key == 13 || key == '\n'){
 		//igra krece jedino u slucaju da je enter pritisnuto iz menija
 		if(stanjeIgre == 'm'){
 			//ulazi se u mod za igru
@@ -699,7 +659,10 @@ static void on_keyboard(unsigned char key, int x, int y){
 			//pokretanje animacije
 			glutTimerFunc(0.1, on_timer, 0);
 		}
-	} else if(strchr("dfghj", key) != NULL && brIgraca == 1 && stanjeIgre == 'i' && (rezultat == 't' || rezultat == 'z')){
+	} else if((strchr("dfghj", key) != NULL || strchr("DFGHJ", key) != NULL) 
+		  && brIgraca == 1 
+		  && stanjeIgre == 'i' 
+		  && (rezultat == 't' || rezultat == 'z')){
 		int pom;
 		switch(key){
 			case 'd': pom = 0; break;
@@ -720,7 +683,9 @@ static void on_keyboard(unsigned char key, int x, int y){
 			redosledZica.m++;
 			pomeraj[pom].m++;
 		}
-	} else if (strchr("asdjkl", key) != NULL && brIgraca == 2 && stanjeIgre == 'i' && (rezultat == 't' || rezultat == 'z')){
+	} else if((strchr("asdjkl", key) != NULL || strchr("ASDJKL", key) != NULL) 
+		   && brIgraca == 2 && stanjeIgre == 'i' 
+		   && (rezultat == 't' || rezultat == 'z')){
 		int pom1;
 		char pom2;
 		switch(key){
@@ -755,13 +720,30 @@ static void on_keyboard(unsigned char key, int x, int y){
 		glutPostRedisplay();
 	} else if(stanjeIgre == 'm' && key == '1'){
 		igraci = '1';
+		brIgraca = 1;
 		glutPostRedisplay();
 	}else if(stanjeIgre == 'm' && key == '2'){
 		igraci = '2';
+		brIgraca = 1;
 		glutPostRedisplay();
 	}else if(stanjeIgre == 'm' && (key == 'z' || key == 'Z')){
 		igraci = 'z';
+		brIgraca = 2;
 		glutPostRedisplay();
+	} else if(stanjeIgre == 'p' && key == 'm'){
+		//nazad u meni
+			
+		//dealokacija memorije
+		free(nizPesme);
+		for(int i = 0; i < 5; i++)
+				free(pomeraj[i].y);
+		free(pogodak.tipkanje);
+		free(redosledZica.struna);
+	
+		stanjeIgre = 'm';
+		glutPostRedisplay();
+	} else if(stanjeIgre == 'p' && key == 'e'){
+		exit(0);
 	}
 }
 
@@ -826,7 +808,7 @@ int main(int argc, char** argv){
 	//pravi se prozor koji prekriva ceo ekran
 	glutInitWindowSize(1700, 900);
 	glutInitWindowPosition(300, 700);
-	wid = glutCreateWindow("GUITAR HERO");
+	glutCreateWindow("GUITAR HERO");
 	glutFullScreen();
 
 	//registruju se callback funkcije
@@ -836,7 +818,6 @@ int main(int argc, char** argv){
 
 	//inicijalizuju se pocetne vrednosti
 	velicinaProzora = 'o';
-	promena = 1;
 	glClearColor(1,1,1,1);
 	mod = 'e'; //difoltni je najlaksi nivo
 	stanjeIgre = 'm'; //igra krece iz menija
@@ -860,16 +841,6 @@ int main(int argc, char** argv){
 		exit(1);
 	}
 
-	inicijalizacijaProstora();
-
-	//pravimo prozor za pauzu
-	glutInitWindowSize(500, 300);
-	glutInitWindowPosition(300, 700);
-	sid = glutCreateWindow("pauza");
-
-	glutDisplayFunc(on_display);
-	glutKeyboardFunc(on_keyboard2);
-	glutReshapeFunc(on_reshape);
 	inicijalizacijaProstora();
 
 	//pokrecemo glavnu petlju
