@@ -42,6 +42,7 @@ static char stanjeIgre; //m/i/p -> meni/igra/pauza
 static char rezultat; // g/t/z/p -> gubitak/traje/zavrsnica/pobeda
 static char brIgraca; // 1/2 -> jedan/dva
 static char igraci; // 1/2/z -> prvi/drugi/zajedno
+static char krajIgre; // 0/1 -> nije/jeste kraj igre
 
 static zica pomeraj[5]; //podaci o svakoj zici
 static redosled redosledZica; //redosled zica pojavljivanja kuglica
@@ -97,7 +98,7 @@ void loptica(int y, int linija){
 				break;
 			case 2: 
 				x = -4;
-				ambijentalno[0] = 0.5; 
+				ambijentalno[0] = 0.3; 
 				ambijentalno[2] = 1; 
 				break;
 			case 3: 
@@ -170,12 +171,12 @@ void racunanjePoena(){
 	else
 		poeni = 0;
 
-	printf("%f", poeni);
+	printf("%f\n", poeni);
 
 	//cuvanje skora
 	FILE* f = fopen("skor.txt", "a");
 	if(f == NULL){
-		printf("nemoguce upisati skor");
+		printf("nemoguce upisati skor\n");
 		return;
 	}
 	
@@ -209,7 +210,6 @@ void iscrtavanjeSlika(void){
 	GLfloat amb[] = { 1, 1, 1, 0.5 };
 	glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
 
-
 	int rbSlike = 0;
 	for(int i = -24; i < 24; i = i + 8){
 		glPushMatrix();	
@@ -221,6 +221,7 @@ void iscrtavanjeSlika(void){
 			glTexCoord2f(1,1); glVertex3f(i+8, 40, 10);
 			glTexCoord2f(0,1); glVertex3f(i, 40, 10);
 	  	    glEnd();
+		    glDisable(GL_TEXTURE_2D);
 		glPopMatrix();
 	}
 
@@ -234,11 +235,11 @@ void iskacucaSlika(char slika){
 	switch(slika){
 		case('j'): 
 			rbSlike = 6;
-			x = 4; y = -3; z1 = 4; z2 = -4;
+			x = 4; y = -3; z1 = 6; z2 = -2;
 			break;
 		case('y'): 
 			rbSlike = 7;
-			x = 4; y = -3; z1 = 4; z2 = -4;
+			x = 4; y = -3; z1 = 6; z2 = -2;
 			break;
 		case('p'): 
 			rbSlike = 10; 
@@ -250,6 +251,12 @@ void iskacucaSlika(char slika){
 			break;
 	}
 
+	GLfloat pozicija[] = { 0, -11, 4.5, 0 };
+	glLightfv(GL_LIGHT0, GL_POSITION, pozicija);
+
+	GLfloat amb[] = { 1, 1, 1, 1 };
+	glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
+
 	glPushMatrix();	
 	    glEnable(GL_TEXTURE_2D);
     	    glBindTexture(GL_TEXTURE_2D, slike[rbSlike]);
@@ -259,15 +266,21 @@ void iskacucaSlika(char slika){
 		glTexCoord2f(1,1); glVertex3f(   x, y, z1);
 		glTexCoord2f(0,1); glVertex3f(-1*x, y, z1);
 	    glEnd();
+	    glDisable(GL_TEXTURE_2D);
 	glPopMatrix();
 }
-
-void inicijalizacijaProstora(void);
 
 static void on_display(void){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	if(stanjeIgre == 'i'){ //igra
+		//postavljanje kamere
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+		gluLookAt(0, -10,5,
+			  0,  2,0,
+			  0,  0,1);
+
 		//postavljanje osvetljenja
 		GLfloat pozicija[] = { 0, -11, 4.5, 0 };
 		glLightfv(GL_LIGHT0, GL_POSITION, pozicija);
@@ -288,20 +301,21 @@ static void on_display(void){
 		GLfloat spec[] = { 0.8, 0.8, 0.8, 1 };
 		glMaterialfv(GL_FRONT, GL_SPECULAR, spec);
 
-		//postavljanje kamere
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
-		gluLookAt(0, -10,5,
-			  0,  2,0,
-			  0,  0,1);
-
-		if(rezultat == 'g')
+		if(rezultat == 'g'){
 			iskacucaSlika('g'); //crtamo sliku gameover
-		else if(rezultat == 'p')
+			glutSwapBuffers();
+			racunanjePoena();
+			sleep(3);
+			stanjeIgre = 'm';
+			glutPostRedisplay();
+		}else if(rezultat == 'p'){
 			iskacucaSlika('p'); //crtamo sliku win
-		else if(mod != 'm' || jumpScare == 0){
-			iscrtavanjeSlika();
-
+			glutSwapBuffers();
+			racunanjePoena();
+			sleep(3);
+			stanjeIgre = 'm';
+			glutPostRedisplay();
+		}else if(mod != 'm' || jumpScare == 0){
 			//crtanje zica
 			for(int x = -8; x <9; x = x+4){
 			    glBegin(GL_LINE_STRIP);
@@ -311,7 +325,6 @@ static void on_display(void){
 			}
 
 			//zica prekoracenja
-			//GLfloat amb[] = { 1, 1, 1, 1 };
 			amb[1] = 0;
 			amb[2] = 0;
 			glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
@@ -342,7 +355,7 @@ static void on_display(void){
 						loptica(pomeraj[i].y[j], i+1);
 			}
 			
-
+			iscrtavanjeSlika();
 		} else { //crtamo slike jumpscare 1 i 2
 			if(jumpScare == 1)
 				iskacucaSlika('y');
@@ -357,10 +370,10 @@ static void on_display(void){
 			  0,0,0,
 			  0,1,0);
 
-		GLfloat pozicija[] = { 0, 0, 10, 1 };
+		GLfloat pozicija[] = { 14, 14, 10, 0.5 };
 		glLightfv(GL_LIGHT0, GL_POSITION, pozicija);
 
-		GLfloat amb[] = { 1, 1, 1, 1 };
+		GLfloat amb[] = { 0, 1, 0, 1 };
 		glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
 
 		//prikaz instrukcija za meni:
@@ -375,9 +388,24 @@ static void on_display(void){
 			glTexCoord2f(1,1); glVertex3f( 7.5, 3, -0.3);
 			glTexCoord2f(0,1); glVertex3f(-7.5, 3, -0.3);
 		    glEnd();
+		    glDisable(GL_TEXTURE_2D);
 		glPopMatrix();
 
 		////prikazi kuglice:
+
+		amb[0] = 0;
+		amb[1] = 0.7;
+		amb[2] = 0;
+		glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
+
+		GLfloat spec[] = { 0.1, 0.1, 0.1, 0.5 };
+		glMaterialfv(GL_FRONT, GL_SPECULAR, spec);
+
+		GLfloat em[] = { 0.1, 0.1, 0.1, 0.2 };
+		glMaterialfv(GL_FRONT, GL_EMISSION, em);
+
+		GLfloat dif[] = { 0.3, 0.3, 0.3, 1 };
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, dif);
 
 		//////kuglica za pokazivanje moda igre
 		float pom;
@@ -386,6 +414,7 @@ static void on_display(void){
 			case('m'): pom =  2.25; break;
 			case('h'): pom =  5.5; break;
 		}
+
 		glPushMatrix();
 		    glTranslatef(pom, 0.9,0.5);
 		    glutSolidSphere(0.25,30,30);
@@ -427,6 +456,7 @@ static void on_display(void){
 			glTexCoord2f(1,1); glVertex3f( 7.5, 3, -0.3);
 			glTexCoord2f(0,1); glVertex3f(-7.5, 3, -0.3);
 		    glEnd();
+		    glDisable(GL_TEXTURE_2D);
 		glPopMatrix();
 	}
 
@@ -438,14 +468,10 @@ void dodaj(float d, int i){
 	if(pomeraj[i].n == 0 || pomeraj[i].n == pomeraj[i].m)
 		return;
 
-/*samo za probu 
-pomeraj[i].m = pomeraj[i].n - 5 > 0 ? pomeraj[i].n - 5 : 0;*/
 	for(int j = pomeraj[i].m; j < pomeraj[i].n; j++){
 		pomeraj[i].y[j] = pomeraj[i].y[j] - d;
 		if(pomeraj[i].y[j] < -2){
 			rezultat = 'g';
-			racunanjePoena();
-			glutPostRedisplay();
 		}
 	}
 }
@@ -465,9 +491,10 @@ static void on_timer(int value)
 		return;
 
 	//sve kuglice se priblizavaju
-	for(int i = 0; i < 5; i++){
-		dodaj(DODATAK, i);
-	}
+	if(jumpScare == 0)
+		for(int i = 0; i < 5; i++){
+			dodaj(DODATAK, i);
+		}
 	
 	//ako ima neiscrtanih kuglica 
 	if(sledecaKuglica < brNota && rezultat == 't'){
@@ -477,15 +504,14 @@ static void on_timer(int value)
 		tekuceVreme = tv.tv_sec + 0.000001 * tv.tv_usec 
 			     - pocetakIgre - pauza;
 
-		if(mod == 'm' && tekuceVreme - jumpScareVreme < 1 &&
-				 tekuceVreme - jumpScareVreme > -1){
-			jumpScare = (int)(tekuceVreme) %2 + 1;
+		//ako je vreme za jumpscare iskace slika
+		if(mod == 'm' && tekuceVreme > jumpScareVreme){
+			jumpScare = (int)(tekuceVreme*10) %2 + 1;
 
-			if(tekuceVreme - jumpScareVreme > 7)
+			//ako je jump scare trajao vec 4.5 sekundi
+			if(tekuceVreme > 4.5 + jumpScareVreme)
 				rezultat = 'p';
 		} else
-
-
 		//ako je vreme za novu kuglicu
 		if(tekuceVreme - nizPesme[sledecaKuglica] < TOLERANCIJA 
 		&& tekuceVreme - nizPesme[sledecaKuglica] > -TOLERANCIJA){
@@ -533,29 +559,23 @@ static void on_timer(int value)
 		if(redosledZica.m == brNota){
 			rezultat = 'p';
 		}
-		//i onda kreni sa pomeranjem slike (zavrsnica deo u displeju)
 	}
 	
 	//iscrtavanje prozora
 	glutPostRedisplay();
 
 	//provera je li kraj igre:
-	//ako je igra predjena
-	if(rezultat == 'p'){
-		sleep(5);
-		stanjeIgre = 'm';
-	}
 
-	//ako je igra izgubljena
-	if(rezultat == 'g'){
-		sleep(5);
-		stanjeIgre = 'm';
+	//ako je igra predjena ili izgubljena
+	//ulazimo u meni za 3 sekunde 
+	if(rezultat == 'p' || rezultat == 'g'){
+		krajIgre = 1;
 	}
 
 	//ako je igra pauzirana -> stanje igre je vec promenjeno
 
 	//ako nije kraj igre nastavlja se sa pomeranjem kuglica 
-	if (stanjeIgre == 'i')
+	if (stanjeIgre == 'i' && krajIgre == 0)
 		glutTimerFunc(bkk, on_timer, 0);
 }
 
@@ -652,6 +672,8 @@ static void on_keyboard(unsigned char key, int x, int y){
 			pocetakIgre = pom.tv_sec + 0.000001 * pom.tv_usec;
 			pauza = 0;
 			sledecaKuglica = 0;
+			jumpScare = 0;
+			krajIgre = 0;
 
 			//sid za random biranje zice
 			srand(pocetakIgre);
@@ -674,7 +696,7 @@ static void on_keyboard(unsigned char key, int x, int y){
 		if(redosledZica.struna[redosledZica.m] != key
 		   || redosledZica.n == redosledZica.m){
 			rezultat = 'g';
-			racunanjePoena();
+			krajIgre = 1;
 		} else{
 			struct timeval pomt;
 			gettimeofday(&pomt, NULL);
@@ -699,7 +721,7 @@ static void on_keyboard(unsigned char key, int x, int y){
 		if(redosledZica.struna[redosledZica.m] != pom2
 		   || redosledZica.n == redosledZica.m){
 			rezultat = 'g';
-			racunanjePoena();
+			krajIgre = 1;
 		} else{
 			struct timeval pomt;
 			gettimeofday(&pomt, NULL);
@@ -778,27 +800,6 @@ int ucitajSlike(void){
 	return brojac;
 }
 
-void inicijalizacijaProstora(void){
-	//ukljucivanje potrebnih specifikacija
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
-	glEnable(GL_LIGHTING);
-	glEnable(GL_LIGHT0);
-
-	//podesavanje osobina osvetljenja
-	GLfloat ambient[] = { 1, 1, 1, 1 };
-	glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
-
-	GLfloat diffuse[] = { 1, 1, 1, 1 };
-	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
-
-	GLfloat specular[] = { 0.7, 0.7, 0.7, 1 };
-	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
-
-	GLfloat mambient[] = { 0.5, 0.5, 0.5, 1 };
-	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, mambient);
-}
 
 int main(int argc, char** argv){
 	// inicijalizacija gluta
@@ -818,14 +819,15 @@ int main(int argc, char** argv){
 
 	//inicijalizuju se pocetne vrednosti
 	velicinaProzora = 'o';
-	glClearColor(1,1,1,1);
+	glClearColor(0,0,0,0.5);
 	mod = 'e'; //difoltni je najlaksi nivo
 	stanjeIgre = 'm'; //igra krece iz menija
-	jumpScareVreme = 15.132;
+	jumpScareVreme = 3;
 	jumpScare = 0;
 	muzika = 'i'; //po difoltu je muzika iskljucena
 	brIgraca = 1; //po difoltu 1, osim ako se ne unesu 2 imena
 	igraci = '1';
+	krajIgre = 0; //nije kraj igre
 	if(argc == 2){
 		ime1 = argv[1];
 	}
@@ -841,7 +843,26 @@ int main(int argc, char** argv){
 		exit(1);
 	}
 
-	inicijalizacijaProstora();
+	//inicijalizacijaProstora
+	////ukljucivanje potrebnih specifikacija
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+
+	////podesavanje osobina osvetljenja
+	GLfloat ambient[] = { 1, 1, 1, 1 };
+	glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+
+	GLfloat diffuse[] = { 1, 1, 1, 1 };
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+
+	GLfloat specular[] = { 0.7, 0.7, 0.7, 1};
+	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
+
+	GLfloat mambient[] = { 0.5, 0.5, 0.5, 1};
+	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, mambient);
 
 	//pokrecemo glavnu petlju
 	glutMainLoop();
